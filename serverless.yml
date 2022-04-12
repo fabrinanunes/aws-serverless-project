@@ -1,0 +1,104 @@
+service: pocserverless
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  profile: serverlessUser
+  environment:
+    tableName: ${self:custom.tableName}
+    bucketName: ${self:custom.bucketName}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:*
+        - s3:*
+      Resource: '*'
+  apiGateway:
+    apiKeys:
+      - free: myFreeApiKey
+      - paid: myPaidApiKey
+    usagePlan:
+      - free:
+          quota:
+            limit: 5
+            period: MONTH
+          throttle:
+            rateLimit: 5
+            burstLimit: 20
+      - paid:
+          quota:
+            limit: 1000
+            period: MONTH
+          throttle:
+            burstLimit: 500
+            rateLimit: 200
+
+plugins:
+  - serverless-s3-sync
+  - serverless-webpack
+
+package:
+  individually: true
+
+custom:
+  tableName: player-points
+  bucketName: pocserverless-fabrina
+  s3Sync:
+    - bucketName: ${self:custom.bucketName}
+      localDir: UploadData
+
+functions:
+  getUser:
+    handler: lambdas/endpoints/getUser.handler
+    events:
+      - http:
+          path: get-user/{ID}
+          method: GET
+          cors: true
+          private: true
+  getPlayerScore:
+    handler: lambdas/endpoints/getPlayerScore.handler
+    events:
+      - http:
+          path: get-player-score/{ID}
+          method: GET
+          cors: true
+  createPlayerScore:
+    handler: lambdas/endpoints/createPlayerScore.handler
+    events:
+      - http:
+          path: create-player-score/{ID}
+          method: POST
+          cors: true
+  createFile:
+    handler: lambdas/endpoints/createFile.handler
+    events:
+      - http:
+          path: create-file/{fileName}
+          method: POST
+          cors: true
+  getFile:
+    handler: lambdas/endpoints/getFile.handler
+    events:
+      - http:
+          path: get-file/{fileName}
+          method: GET
+          cors: true
+
+resources:
+  Resources:
+    DemoBucketUpload:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucketName}
+    DynamoDbTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tableName}
+        AttributeDefinitions:
+          - AttributeName: ID
+            AttributeType: S
+        KeySchema:
+          - AttributeName: ID
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
